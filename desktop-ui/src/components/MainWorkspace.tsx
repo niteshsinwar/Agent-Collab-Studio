@@ -46,14 +46,25 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   }, [messages]);
 
   useEffect(() => {
-    if (agents.length > 0 && !selectedAgent) {
-      setSelectedAgent(agents[0].key);
+    console.log('MainWorkspace: agents changed:', agents);
+    if (agents.length > 0) {
+      // Check if current selectedAgent is valid for this group
+      const isSelectedAgentValid = agents.some(agent => agent.key === selectedAgent);
+      
+      if (!selectedAgent || !isSelectedAgentValid) {
+        console.log('MainWorkspace: setting selectedAgent to:', agents[0].key, '(was:', selectedAgent, ')');
+        setSelectedAgent(agents[0].key);
+      }
+    } else {
+      // No agents available, clear selection
+      setSelectedAgent('');
     }
-  }, [agents, selectedAgent]);
+  }, [agents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && selectedAgent) {
+      console.log('MainWorkspace: sending message to agent:', selectedAgent, 'message:', message.trim());
       setIsTyping(true);
       await onSendMessage(selectedAgent, message.trim());
       setMessage('');

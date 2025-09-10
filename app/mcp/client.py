@@ -465,6 +465,13 @@ class MCPManager:
         start_time = time.time()
         
         try:
+            # Check if server is healthy before invoking tool
+            if server.status != MCPServerStatus.RUNNING:
+                logger.warning(f"MCP server {server_name} is not running (status: {server.status}), attempting restart...")
+                restart_success = await server.start()
+                if not restart_success:
+                    raise RuntimeError(f"Failed to restart MCP server {server_name}")
+            
             # Log MCP call start
             session_logger.log_mcp_call(
                 session_id=group_id,
@@ -474,8 +481,11 @@ class MCPManager:
                 params=params
             )
             
-            # Execute the tool call
-            result = await server.call_tool(tool_name, params)
+            # Execute the tool call with timeout
+            result = await asyncio.wait_for(
+                server.call_tool(tool_name, params),
+                timeout=15.0  # 15 second timeout per tool call
+            )
             duration_ms = (time.time() - start_time) * 1000
             
             # Log successful result

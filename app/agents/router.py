@@ -43,6 +43,27 @@ class Router:
         return agent_key, content
 
     async def handle_user_message(self, group_id: str, text: str) -> str:
+        members = session_store.list_group_agents(group_id)
+        
+        # Special case: if only one agent in group, auto-respond without @mention needed
+        if len(members) == 1:
+            agent_key = members[0]
+            
+            # Persist + emit user message
+            session_store.append_message(group_id, sender="user", role="user", content=text)
+            await emit_message(group_id, sender="user", role="user", content=text)
+            
+            # Get agent response with document context
+            reply = await self.o.process_user_message(group_id, agent_key, text)
+            
+            # Save agent response only if it's not empty
+            if str(reply).strip():
+                session_store.append_message(group_id, sender=agent_key, role="agent", content=str(reply), metadata={"agent_key": agent_key})
+                await emit_message(group_id, sender=agent_key, role="agent", content=str(reply), agent_key=agent_key)
+            
+            return str(reply)
+        
+        # Original code for multiple agents
         parsed = self.parse(text)
         if not parsed:
             # Check if there are multiple @mentions

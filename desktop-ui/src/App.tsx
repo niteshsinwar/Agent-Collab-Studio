@@ -67,6 +67,7 @@ function App() {
           apiService.getGroupMessages(selectedGroup.id).catch(() => []),
         ]);
         
+        console.log('App: API returned groupAgents for group', selectedGroup.id, ':', groupAgentsData);
         setGroupAgents(Array.isArray(groupAgentsData) ? groupAgentsData : []);
         setMessages(Array.isArray(messagesData) ? messagesData : []);
       } catch (error) {

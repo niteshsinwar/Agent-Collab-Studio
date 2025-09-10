@@ -135,6 +135,24 @@ async def lifespan(app: FastAPI):
         }
         print(f"🔑 API Keys status: {api_keys}")
         
+        # Pre-warm MCP agents in background (don't block startup)
+        async def prewarm_mcp_agents():
+            try:
+                mcp_agents = [(k, v.name) for k, v in agents.items() if v.mcp_config.get("mcpServers")]
+                if mcp_agents:
+                    print(f"🔥 Pre-warming {len(mcp_agents)} MCP agents in background...")
+                    for agent_key, agent_name in mcp_agents:
+                        try:
+                            await asyncio.wait_for(orchestrator.get_agent(agent_key), timeout=15.0)
+                            print(f"✅ Pre-warmed: {agent_key} ({agent_name})")
+                        except Exception as e:
+                            print(f"⚠️ Pre-warm failed: {agent_key} - {e}")
+            except Exception as e:
+                print(f"⚠️ MCP pre-warming error: {e}")
+        
+        # Start pre-warming in background
+        asyncio.create_task(prewarm_mcp_agents())
+        
     except Exception as e:
         print(f"❌ API Server: Failed to initialize orchestrator: {e}")
         import traceback
@@ -274,10 +292,18 @@ async def send_message(group_id: str, request: SendMessageRequest):
         raise HTTPException(status_code=500, detail="Router not initialized")
     
     try:
-        # Format message with agent mention if not already present, just like Gradio does
+        # Format message with agent mention if not already present
         message = request.message
-        if not message.strip().startswith(f"@{request.agent_id}"):
-            message = f"@{request.agent_id} {message}"
+        
+        # Check if this is a single-agent group
+        group_agents = session_store.list_group_agents(group_id)
+        if len(group_agents) == 1:
+            # Single agent - no @mention needed, router will handle it
+            pass
+        else:
+            # Multiple agents - add @mention if not present
+            if not message.strip().startswith(f"@{request.agent_id}"):
+                message = f"@{request.agent_id} {message}"
         
         print(f"🚀 Processing message for group {group_id}: {message[:100]}...")
         
